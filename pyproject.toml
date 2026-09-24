@@ -5,10 +5,11 @@ description = "A browser agent that chooses instead of generating."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
-dependencies = ["browser-harness==0.1.13", "httpx[http2]>=0.28,<1", "laya>=0.3.7"]
+dependencies = ["browser-harness==0.1.13", "httpx[http2]>=0.28,<1", "laya>=0.3.7", "mcp>=1.0,<2"]
 
 [project.scripts]
 laya-browser = "laya_browser_ultrafast.demo:main"
+laya-browser-mcp = "laya_browser_ultrafast.mcp_server:main"
 
 [project.optional-dependencies]
 serve = ["laya[serve]"]

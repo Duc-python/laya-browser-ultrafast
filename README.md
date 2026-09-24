@@ -107,6 +107,30 @@ uv run --env-file .env python examples/run.py \
 
 `uv run --env-file .env python examples/flights.py --keep-open` performs the flight search, checks the actual route/date/results, and saves its trace. It does not select or book a flight.
 
+## Use over MCP
+
+The agent is also an MCP server (stdio transport) with the same loop —
+`start_task` opens a tab from one goal, then `predict` / `act` / `tick`
+(or `run` for the whole task) until done or blocked. A `DONE` choice is
+not proof of success; verify the final page yourself.
+
+```json
+{
+  "mcpServers": {
+    "laya-browser": {
+      "command": "uv",
+      "args": ["--directory", "D:/orca/laya-browser-ultrafast", "run", "laya-browser-mcp"],
+      "env": { "DECISION_BACKEND": "laya" }
+    }
+  }
+}
+```
+
+Tools: `start_task(url, goal)` · `snapshot()` · `predict()` · `act()` ·
+`tick()` · `run(max_ticks)` · `close_task()`. Responses carry the indexed
+element table and execution history, never screenshots. Needs Chrome with
+remote debugging (same as the demo) and `TEXT_MODEL_API_KEY` for `TYPE_TEXT`.
+
 ## Why it moves
 
 - **One request per decision cycle.** Operation and target heads share the same observed state.
