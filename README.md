@@ -51,7 +51,7 @@ There are no site-specific action scripts or prepared field strings in the polic
 ## Try it
 
 ```bash
-git clone <your-laya-browser-ultrafast-url>
+git clone https://github.com/Duc-python/laya-browser-ultrafast.git
 cd laya-browser-ultrafast
 uv sync
 cp .env.example .env
