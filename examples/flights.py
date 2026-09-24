@@ -1,4 +1,4 @@
-"""Live Google Flights search. Calls TypeSafe; never selects or books a flight."""
+"""Live Google Flights search. Calls the decision backend; never selects or books a flight."""
 
 import argparse
 import base64
@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from jev_ultrafast import Agent
+from laya_browser_ultrafast import Agent
 
 URL = "https://www.google.com/travel/flights?hl=en"
 GOALS = (

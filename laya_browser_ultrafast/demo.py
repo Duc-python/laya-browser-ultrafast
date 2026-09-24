@@ -1,4 +1,4 @@
-"""Loopback-only inspector for the Jev browser agent."""
+"""Loopback-only inspector for the Laya browser agent."""
 
 import atexit
 import json
@@ -13,7 +13,7 @@ from .agent import Agent
 from .questions import MAX_STEPS
 
 ROOT = Path(__file__).parent
-PORT = int(os.environ.get("TYPESAFE_DEMO_PORT", "8766"))
+PORT = int(os.environ.get("LAYA_DEMO_PORT", os.environ.get("TYPESAFE_DEMO_PORT", "8766")))
 ORIGIN = f"http://127.0.0.1:{PORT}"
 TOKEN = secrets.token_urlsafe(32)
 LOCK = threading.Lock()
@@ -132,7 +132,7 @@ def main():
     load_environment()
     atexit.register(close_browser)
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    print(f"Jev Ultrafast: {ORIGIN}", flush=True)
+    print(f"Laya Browser Ultrafast: {ORIGIN}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

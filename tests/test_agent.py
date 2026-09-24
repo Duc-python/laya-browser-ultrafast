@@ -7,9 +7,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from jev_ultrafast import agent as loop
-from jev_ultrafast import model
-from jev_ultrafast.browser import StalePage, browser_operation, fingerprint
+from laya_browser_ultrafast import agent as loop
+from laya_browser_ultrafast import model
+from laya_browser_ultrafast.browser import StalePage, browser_operation, fingerprint
 
 
 def page():
@@ -60,7 +60,7 @@ def test_invalid_choice_is_rejected(mutation):
         a["choice"] = "b"
     else:
         a["confidence"] = 5
-    with pytest.raises(ValueError, match="Invalid TypeSafe"):
+    with pytest.raises(ValueError, match="Invalid decision"):
         model.validate_choice(a, {"a", "b"})
 
 
@@ -88,6 +88,7 @@ def test_all_heads_are_one_request_and_only_matching_head_executes(monkeypatch):
             },
         }
 
+    monkeypatch.setenv("DECISION_BACKEND", "typesafe")
     monkeypatch.setenv("TYPESAFE_API_KEY", "test")
     monkeypatch.setattr(model, "post_json", post)
     d = model.choose(page(), "Find a book", [])
@@ -107,9 +108,10 @@ def test_click_cannot_consume_a_text_target(monkeypatch):
             },
         }
 
+    monkeypatch.setenv("DECISION_BACKEND", "typesafe")
     monkeypatch.setenv("TYPESAFE_API_KEY", "test")
     monkeypatch.setattr(model, "post_json", post)
-    with pytest.raises(ValueError, match="Invalid TypeSafe"):
+    with pytest.raises(ValueError, match="Invalid decision"):
         model.choose(page(), "Find a book", [])
 
 
@@ -134,10 +136,38 @@ def test_target_head_receives_control_state_and_full_next_step_rules(monkeypatch
             },
         }
 
+    monkeypatch.setenv("DECISION_BACKEND", "typesafe")
     monkeypatch.setenv("TYPESAFE_API_KEY", "test")
     monkeypatch.setattr(model, "post_json", post)
     d = model.choose(p, "Search with free cancellation", [])
     assert d["choice"] == "e3"
+
+
+def test_unknown_backend_is_rejected(monkeypatch):
+    monkeypatch.setenv("DECISION_BACKEND", "nope")
+    with pytest.raises(ValueError, match="Unknown DECISION_BACKEND"):
+        model.choose(page(), "Find a book", [])
+
+
+def test_laya_backend_uses_in_process_router(monkeypatch):
+    calls = {}
+
+    class FakeRouter:
+        def predict(self, state, questions, **kwargs):
+            calls["questions"] = questions
+            return {
+                "model": "laya-test",
+                "answers": {
+                    "operation": choice(questions["operation"]["criteria"], "TYPE_TEXT"),
+                    "type_text_target": choice(["1"], "1"),
+                },
+            }
+
+    monkeypatch.setenv("DECISION_BACKEND", "laya")
+    monkeypatch.setattr(model, "_get_router", lambda: FakeRouter())
+    d = model.choose(page(), "Find a book", [])
+    assert d["operation"] == "TYPE_TEXT" and d["choice"] == "e1"
+    assert set(calls["questions"]) == {"operation", "click_target", "type_text_target"}
 
 
 def test_quoted_task_text_still_uses_the_llm(monkeypatch):
@@ -228,7 +258,7 @@ def test_stale_observation_preserves_executed_action(runner):
 
 
 def test_observation_is_one_atomic_browser_read(monkeypatch):
-    import jev_ultrafast.browser as browser
+    import laya_browser_ultrafast.browser as browser
 
     p = page()
     cdp = Mock(return_value={"result": {"value": p}})
@@ -240,7 +270,7 @@ def test_observation_is_one_atomic_browser_read(monkeypatch):
 
 
 def test_executor_rejects_a_stale_page_before_browser_input(monkeypatch):
-    import jev_ultrafast.browser as browser
+    import laya_browser_ultrafast.browser as browser
 
     b = browser.Browser.__new__(browser.Browser)
     b.fresh = Mock(return_value=False)
@@ -253,7 +283,7 @@ def test_executor_rejects_a_stale_page_before_browser_input(monkeypatch):
 
 @pytest.mark.parametrize("response", [{"exceptionDetails": {}}, {"result": {}}])
 def test_interrupted_dropdown_mutation_cannot_be_retried_as_stale(monkeypatch, response):
-    import jev_ultrafast.browser as browser
+    import laya_browser_ultrafast.browser as browser
 
     # A navigation can destroy the evaluation result after the change event already fired.
     if "exceptionDetails" in response:

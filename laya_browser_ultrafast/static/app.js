@@ -83,7 +83,7 @@ function render() {
     idle: "Ready to explore",
     ready: "Page observed · ready for a decision",
     predicted: "Choice ready · inspect or execute",
-    done: "Jev reports complete · inspect the page",
+    done: "Laya reports complete · inspect the page",
     blocked: "Stopped · no supported next action",
   };
   $("status").textContent = labels[state.status] || state.status;
@@ -104,7 +104,7 @@ function render() {
   $("latency").textContent = d ? `${d.latency_ms} ms` : "—";
   $("confidence").textContent = d?.target_confidence != null ? percent(d.target_confidence) : "—";
   $("completion").textContent = d ? d.operation : "—";
-  $("ranking-note").textContent = d ? "Ranked by Jev" : "Unranked";
+  $("ranking-note").textContent = d ? "Ranked by Laya" : "Unranked";
   const op = Object.entries(d?.operation_probabilities || {}).sort((a,b)=>b[1]-a[1]);
   $("operation-choices").innerHTML = op.map(([name,p]) =>
     `<span class="operation-choice ${name === d.operation ? 'best' : ''}">${escape(name)} <b>${percent(p)}</b></span>`).join('');
@@ -158,7 +158,7 @@ $("scenario").addEventListener("change", () => {
   $("goal").value = goals[$("scenario").value];
 });
 $("choose").addEventListener("click", () =>
-  perform(() => call("predict"), "Jev is comparing the actions…"),
+  perform(() => call("predict"), "Laya is comparing the actions…"),
 );
 $("execute").addEventListener("click", () =>
   perform(
@@ -229,7 +229,7 @@ $("download").addEventListener("click", () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "typesafe-browser-trace.json";
+  a.download = "laya-browser-trace.json";
   a.click();
   URL.revokeObjectURL(url);
 });

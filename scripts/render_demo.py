@@ -57,7 +57,7 @@ for i in range(round((end + 500) * 30 / 1000)):
     d.text((145, 201), "google.com/travel/flights", font=mono(13), fill="#d4d6d5")
     # Omit Google account controls in every frame. No content from the task area is redrawn.
     canvas.paste(screenshot.crop((0, 64, 1120, 780)), (36, 226))
-    d.text((1192, 206), "JEV ULTRAFAST", font=font(16, True), fill=green)
+    d.text((1192, 206), "LAYA ULTRAFAST", font=font(16, True), fill=green)
     d.text((1189, 242), f"{t / 1000:05.2f}", font=mono(52), fill=ink)
     d.text((1193, 307), "SECONDS ELAPSED", font=font(13, True), fill=muted)
     history = [h for h in state["history"] if h["executed_ms"] <= t]
@@ -89,12 +89,12 @@ for i in range(round((end + 500) * 30 / 1000)):
     d.line((37, 960, 37 + (1498 - 37) * t / end, 960), fill=green, width=3)
     d.text(
         (37, 973),
-        f"Operation + index by Jev. Text by {state['text_calls'][0]['model'].split('/')[-1]}. "
+        f"Operation + index by Laya. Text by {state['text_calls'][0]['model'].split('/')[-1]}. "
         "Original timing; waits included.",
         font=font(14),
         fill=muted,
     )
-    d.text((1194, 973), "github.com/browser-use/jev-ultrafast", font=font(12), fill=muted)
+    d.text((1194, 973), "github.com/laya-browser-ultrafast", font=font(12), fill=muted)
     canvas.save(folder / f"{i:04d}.png")
 canvas.save(ROOT / "docs/flights-result.png")
 subprocess.run(

@@ -1,4 +1,14 @@
-"""TypeSafe makes choices; an optional small OpenAI-compatible model writes field values."""
+"""Decisions choose an operation + target; an optional small OpenAI-compatible model writes field values.
+
+Backends (env DECISION_BACKEND, default "laya"):
+- "laya": in-process open-weights System-1 model via `pip install laya`
+  (Router over convaiinnovations/laya checkpoints, incl. browser-tuned
+  `cklxx/laya-browser`). No API key. Honors LAYA_MODEL / LAYA_DEVICE /
+  LAYA_HEAD_MAX_LEN / LAYA_MAX_LEN.
+- "typesafe": hosted Jev SystemOne API (legacy path). Honors TYPESAFE_API_KEY,
+  TYPESAFE_MODEL, TYPESAFE_BASE_URL (override to a local shim such as
+  `laya-serve` or laya2typesafeapi for HTTP self-hosting).
+"""
 
 import json
 import math
@@ -10,6 +20,8 @@ import httpx
 from .questions import NEXT_ACTION, TARGET, TEXT_VALUE
 
 CLIENT = httpx.Client(http2=True, timeout=25)
+
+_ROUTER = None
 
 
 def post_json(url, key, body):
@@ -41,7 +53,7 @@ def validate_choice(answer, ids):
     except (KeyError, TypeError, ValueError):
         valid = False
     if not valid:
-        raise ValueError("Invalid TypeSafe response; no action executed.")
+        raise ValueError("Invalid decision response; no action executed.")
     return answer
 
 
@@ -78,7 +90,7 @@ def action_space(actions):
     return elements, targets, controls
 
 
-def choose(state, goal, history):
+def build_request(state, goal, history):
     elements, targets, controls = action_space(state["actions"])
     labels = {
         "CLICK": "Click an element, button, menu option, autocomplete suggestion, or calendar day.",
@@ -115,8 +127,92 @@ def choose(state, goal, history):
         },
         "questions": questions,
     }
+    return body, elements, targets, controls
+
+
+def _get_router():
+    """Lazily build the in-process Laya Router; preload once per process."""
+    global _ROUTER
+    if _ROUTER is not None:
+        return _ROUTER
+    try:
+        from laya import Router
+    except ImportError as error:
+        raise RuntimeError(
+            "DECISION_BACKEND=laya needs `pip install laya` (or uv sync). "
+            "Use DECISION_BACKEND=typesafe with TYPESAFE_API_KEY for the hosted path."
+        ) from error
+    preload = os.environ.get("LAYA_PRELOAD", "1") not in {"0", "false", "no"}
+    device = os.environ.get("LAYA_DEVICE")
+    kwargs = {"preload": preload}
+    if device:
+        kwargs["device"] = device
+    default = os.environ.get("LAYA_DEFAULT")
+    if default:
+        kwargs["default"] = default
+    router = Router(**kwargs)
+    # Raise the option budget for dense pages (browser target heads are
+    # high-cardinality). Encoders support up to 8192; defaults are 512/1024.
+    head_max = int(os.environ.get("LAYA_HEAD_MAX_LEN", "768"))
+    max_len = int(os.environ.get("LAYA_MAX_LEN", "2048"))
+    for agent in getattr(router, "agents", {}).values() if hasattr(router, "agents") else []:
+        try:
+            agent.cfg["head_max_len"] = max(agent.cfg.get("head_max_len", 0), head_max)
+            agent.cfg["max_len"] = max(agent.cfg.get("max_len", 0), max_len)
+        except (AttributeError, KeyError, TypeError):
+            continue
+    _ROUTER = router
+    return router
+
+
+def _choose_laya(body, operations, targets, controls):
+    router = _get_router()
     started = time.perf_counter()
-    result = post_json("https://api.typesafe.ai/v1/systemone", os.environ["TYPESAFE_API_KEY"], body)
+    predict_kwargs = {}
+    model_override = os.environ.get("LAYA_MODEL")
+    # Router.predict accepts model= to pin a checkpoint (e.g. typed-decisions
+    # or cklxx/laya-browser). Omit to let the router pick by script/language.
+    if model_override:
+        predict_kwargs["model"] = model_override
+    result = router.predict(body["state"], body["questions"], **predict_kwargs)
+    operation_answer = validate_choice(result["answers"].get("operation", {}), operations)
+    operation = operation_answer["choice"]
+    target = None
+    target_answer = None
+    probabilities = {}
+    if operation in targets:
+        # Unused target heads cannot cause an action. Validate the head selected by the operation.
+        target_answer = validate_choice(result["answers"].get(operation.lower() + "_target", {}), targets[operation])
+        target = target_answer["choice"]
+        choice = targets[operation][target]["id"]
+        probabilities = {a["id"]: target_answer["probabilities"][index] for index, a in targets[operation].items()}
+    else:
+        choice = controls[operation]["id"] if operation in controls else operation
+        probabilities[choice] = operation_answer["probabilities"][operation]
+    return {
+        "choice": choice,
+        "operation": operation,
+        "target": target,
+        "confidence": operation_answer["confidence"],
+        "probabilities": probabilities,
+        "operation_probabilities": operation_answer["probabilities"],
+        "target_probabilities": target_answer["probabilities"] if target_answer else {},
+        "target_confidence": target_answer["confidence"] if target_answer else None,
+        "raw_answers": result["answers"],
+        "model": result.get("model", os.environ.get("LAYA_MODEL", "laya")),
+        "usage": result.get("usage", {}),
+        "latency_ms": round((time.perf_counter() - started) * 1000),
+        "request": body,
+    }
+
+
+def _choose_typesafe(body, operations, targets, controls):
+    base = os.environ.get("TYPESAFE_BASE_URL", "https://api.typesafe.ai").rstrip("/")
+    key = os.environ.get("TYPESAFE_API_KEY")
+    if not key:
+        raise ValueError("DECISION_BACKEND=typesafe needs TYPESAFE_API_KEY; no action executed.")
+    started = time.perf_counter()
+    result = post_json(base + "/v1/systemone", key, body)
     operation_answer = validate_choice(result["answers"].get("operation", {}), operations)
     operation = operation_answer["choice"]
     target = None
@@ -146,6 +242,17 @@ def choose(state, goal, history):
         "latency_ms": round((time.perf_counter() - started) * 1000),
         "request": body,
     }
+
+
+def choose(state, goal, history):
+    body, _elements, targets, controls = build_request(state, goal, history)
+    operations = body["questions"]["operation"]["criteria"]
+    backend = os.environ.get("DECISION_BACKEND", "laya").strip().lower()
+    if backend == "laya":
+        return _choose_laya(body, operations, targets, controls)
+    if backend == "typesafe":
+        return _choose_typesafe(body, operations, targets, controls)
+    raise ValueError(f"Unknown DECISION_BACKEND={backend!r}; use 'laya' or 'typesafe'.")
 
 
 def field_context(goal, action, page, history):

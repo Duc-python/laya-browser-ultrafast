@@ -49,7 +49,7 @@ class Browser:
                 self.call(
                     "Runtime.evaluate",
                     expression="""(action => new Promise(resolve => {
-                      const field=window.__jevFast?.nodes.get(action.node);
+                      const field=window.__layaFast?.nodes.get(action.node);
                       const autocomplete=action.kind==='fill' && field?.getAttribute('role')==='combobox';
                       let frames=0, stopped=false;
                       const finish=()=>{stopped=true;resolve()};
@@ -91,7 +91,7 @@ class Browser:
             if type(node) is not int:
                 return False
             current = self.evaluate(
-                "(() => { const c=window.__jevFast; "
+                "(() => { const c=window.__layaFast; "
                 f"return c ? [c.pageKey(),c.guard(c.nodes.get({node}))] : null; }})()"
             )
             return current == [page["page_key"], page["guards"].get(str(node))]
@@ -142,7 +142,7 @@ def browser_operation(request):
                 raise ValueError("Invalid observed node")
             # Code-owned node IDs refer to actual observed elements, never model-generated selectors.
             target = evaluate("""(action => {
-              const e=window.__jevFast?.nodes.get(action.node);
+              const e=window.__layaFast?.nodes.get(action.node);
               if (!e?.isConnected || e.matches(':disabled') || e.closest('[aria-disabled="true"],[inert]') ||
                   !e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) return null;
               if (action.kind==='fill' && (e.readOnly || e.getAttribute('aria-readonly')==='true')) return null;
